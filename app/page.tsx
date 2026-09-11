@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, Mic, Play, Pause, Square, Download, Search, Volume2, Settings2, Headphones, Sparkles, ChevronRight } from 'lucide-react';
+import { Mic, Play, Pause, Square, Download, Search, Volume2, Settings2, Headphones, Sparkles, ChevronRight } from 'lucide-react';
+import { Mp3Encoder } from 'lamejs';
 
 const verses = [
   { n: 1, text: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ', trans: 'Dengan nama Allah Yang Maha Pengasih, Maha Penyayang.' },
@@ -14,88 +15,17 @@ const verses = [
 ];
 
 export default function Home() {
-  const [playing, setPlaying] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const [active, setActive] = useState(1);
-  const [speed, setSpeed] = useState(1);
-  const [mic, setMic] = useState(false);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const recorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-
-  useEffect(() => {
-    if (!recording) return;
-    const t = setInterval(() => setSeconds(s => s + 1), 1000);
-    return () => clearInterval(t);
-  }, [recording]);
-
-  useEffect(() => {
-    const c = canvas.current; if (!c) return;
-    const ctx = c.getContext('2d'); if (!ctx) return;
-    let frame = 0;
-    const draw = () => {
-      const w = c.width = c.clientWidth * 2, h = c.height = c.clientHeight * 2;
-      ctx.clearRect(0,0,w,h); ctx.lineWidth = 3; ctx.lineCap = 'round';
-      ctx.beginPath();
-      for (let x=0;x<w;x+=5) {
-        const t=x/w*Math.PI*8+frame*.035;
-        const amp=recording ? 22+Math.sin(t*2.1)*11 : 13;
-        const y=h/2+Math.sin(t)*amp+Math.sin(t*.37)*7;
-        x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-      }
-      ctx.strokeStyle='rgba(76, 221, 166, .9)'; ctx.stroke();
-      ctx.beginPath();
-      for (let x=0;x<w;x+=5) { const t=x/w*Math.PI*6-frame*.018; const y=h/2+Math.sin(t)*10+Math.sin(t*1.7)*5; x===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
-      ctx.strokeStyle='rgba(184, 160, 93, .55)'; ctx.stroke();
-      frame++; requestAnimationFrame(draw);
-    }; draw();
-  }, [recording]);
-
-  const startRecording = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return;
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    setMic(true); chunks.current=[];
-    const r = new MediaRecorder(stream); recorder.current=r;
-    r.ondataavailable=e=>e.data.size&&chunks.current.push(e.data);
-    r.onstop=()=>{ stream.getTracks().forEach(t=>t.stop()); setMic(false); };
-    r.start(); setSeconds(0); setRecording(true);
-  };
-  const stopRecording=()=>{ recorder.current?.stop(); setRecording(false); };
-  const downloadRecording=()=>{ const b=new Blob(chunks.current,{type:'audio/webm'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`quran-recitation-${Date.now()}.webm`; a.click(); };
-
-  return <main>
-    <header className="topbar">
-      <div className="brand"><div className="brandmark">ق</div><div><strong>QUR’AN</strong><span>RECITATION STUDIO</span></div></div>
-      <nav><a className="active">Mushaf</a><a>Practice</a><a>Studio</a><a>Recordings</a></nav>
-      <div className="top-actions"><button className="icon"><Search size={18}/></button><button className="icon"><Settings2 size={18}/></button><button className="avatar">R</button></div>
-    </header>
-
-    <section className="hero">
-      <div className="eyebrow"><Sparkles size={14}/> PREMIUM RECITATION EXPERIENCE</div>
-      <h1>Read. Listen.<br/><em>Recite beautifully.</em></h1>
-      <p>A focused Qur’an studio built for listening, guided recitation, and mindful practice.</p>
-      <div className="hero-buttons"><button className="primary" onClick={()=>setPlaying(!playing)}>{playing?<Pause size={17}/>:<Play size={17}/>} {playing?'Pause session':'Start recitation'}</button><button className="ghost"><Headphones size={17}/> Choose Qari</button></div>
-    </section>
-
-    <section className="workspace">
-      <aside className="sidebar"><div className="side-title">SURAH</div><div className="surah selected"><span>01</span><div><b>Al-Fatihah</b><small>Pembukaan</small></div><i>7</i></div>{['Al-Baqarah','Ali ‘Imran','An-Nisa’','Al-Ma’idah'].map((x,i)=><div className="surah" key={x}><span>{String(i+2).padStart(2,'0')}</span><div><b>{x}</b><small>{i===0?'Sapi':'Surah'}</small></div><i>{i===0?286: i===1?200:i===2?176:120}</i></div>)}<button className="browse">Browse all surahs <ChevronRight size={15}/></button></aside>
-
-      <div className="reader">
-        <div className="reader-head"><div><span className="chapter">01 · MAKKIYYAH</span><h2>Al-Fatihah <small>الفاتحة</small></h2></div><div className="reader-tools"><button>◐</button><button>Aa</button><button>⌘</button></div></div>
-        <div className="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
-        <div className="verses">{verses.map(v=><article className={`verse ${active===v.n?'current':''}`} key={v.n} onClick={()=>setActive(v.n)}><span className="verse-no">{v.n}</span><div><div className="arabic">{v.text}</div><div className="translation">{v.trans}</div></div><button className="verse-play" onClick={e=>{e.stopPropagation();setActive(v.n);setPlaying(true)}}><Play size={13}/></button></article>)}</div>
-      </div>
-
-      <aside className="studio"><div className="studio-head"><div><span>RECITATION LAB</span><h3>Qari Studio</h3></div><div className="live">● LIVE</div></div>
-        <div className="qari"><div className="qari-photo">M</div><div><b>Mishary Alafasy</b><small>Murattal · Hafs</small></div><Volume2 size={17}/></div>
-        <div className="visual"><div className="visual-label"><span>REFERENCE · QARI</span><span>{playing?'01:12':'00:00'}</span></div><canvas ref={canvas}/><div className="pitch-line"><span>Pitch contour</span><div className="pitch"><i/><i/><i/><i/><i/><i/><i/></div></div></div>
-        <div className="controls"><button onClick={()=>setPlaying(!playing)} className="playbig">{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>setSpeed(speed===1?0.75:speed===0.75?0.5:1)}>{speed}×</button><button>↻</button></div>
-        <div className="record-box"><div className="record-title"><span>YOUR RECITATION</span><strong>{String(Math.floor(seconds/60)).padStart(2,'0')}:{String(seconds%60).padStart(2,'0')}</strong></div><div className="record-wave">{Array.from({length:38},(_,i)=><i key={i} style={{height:`${8+(i%7)*4+(recording?(i%3)*8:0)}px`}}/>)}</div><div className="record-actions">{!recording?<button className="record" onClick={startRecording}><Mic size={15}/> Start recording</button>:<button className="stop" onClick={stopRecording}><Square size={13} fill="currentColor"/> Stop</button>}<button disabled={!chunks.current.length} onClick={downloadRecording}><Download size={15}/> Save audio</button></div></div>
-        <div className="score"><div><span>Timing</span><b>94%</b></div><div><span>Stability</span><b>91%</b></div><div><span>Flow</span><b>88%</b></div></div>
-        <div className="mic-status">{mic?'● Microphone active — speak naturally':'○ Microphone ready'} </div>
-      </aside>
-    </section>
-    <footer>QUR’AN STUDIO <span>Built for mindful recitation · Audio and Qur’an data should be used according to their respective licenses.</span></footer>
-  </main>;
+  const [playing,setPlaying]=useState(false),[recording,setRecording]=useState(false),[seconds,setSeconds]=useState(0),[active,setActive]=useState(1),[speed,setSpeed]=useState(1),[mic,setMic]=useState(false);
+  const [lastAudio,setLastAudio]=useState<Blob|null>(null);
+  const canvas=useRef<HTMLCanvasElement>(null), recorder=useRef<MediaRecorder|null>(null), chunks=useRef<Blob[]>([]);
+  useEffect(()=>{if(!recording)return;const t=setInterval(()=>setSeconds(s=>s+1),1000);return()=>clearInterval(t)},[recording]);
+  useEffect(()=>{const c=canvas.current;if(!c)return;const ctx=c.getContext('2d');if(!ctx)return;let frame=0,id:number;const draw=()=>{const w=c.width=c.clientWidth*2,h=c.height=c.clientHeight*2;ctx.clearRect(0,0,w,h);ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();for(let x=0;x<w;x+=5){const t=x/w*Math.PI*8+frame*.035,amp=recording?22+Math.sin(t*2.1)*11:13,y=h/2+Math.sin(t)*amp+Math.sin(t*.37)*7;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle='rgba(76,221,166,.9)';ctx.stroke();ctx.beginPath();for(let x=0;x<w;x+=5){const t=x/w*Math.PI*6-frame*.018,y=h/2+Math.sin(t)*10+Math.sin(t*1.7)*5;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle='rgba(184,160,93,.55)';ctx.stroke();frame++;id=requestAnimationFrame(draw)};draw();return()=>cancelAnimationFrame(id)},[recording]);
+  const startRecording=async()=>{try{const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});setMic(true);chunks.current=[];const r=new MediaRecorder(stream);recorder.current=r;r.ondataavailable=e=>e.data.size&&chunks.current.push(e.data);r.onstop=()=>stream.getTracks().forEach(t=>t.stop());r.start();setSeconds(0);setLastAudio(null);setRecording(true)}catch{alert('Microphone tidak dapat diakses. Izinkan akses mikrofon di browser.')}};
+  const stopRecording=()=>{const r=recorder.current;if(!r)return;r.onstop=async()=>{const blob=new Blob(chunks.current,{type:r.mimeType||'audio/webm'});r.stream.getTracks().forEach(t=>t.stop());setMic(false);setLastAudio(blob)};r.stop();setRecording(false)};
+  const downloadMP3=async()=>{if(!lastAudio)return;try{const buf=await lastAudio.arrayBuffer();const ac=new AudioContext();const audio=await ac.decodeAudioData(buf);const channels=Math.min(2,audio.numberOfChannels),sampleRate=audio.sampleRate,encoder=new Mp3Encoder(channels,sampleRate,128),left=audio.getChannelData(0),right=channels===2?audio.getChannelData(1):null;const mp3:number[]=[];const block=1152;for(let i=0;i<left.length;i+=block){const l=new Int16Array(Math.min(block,left.length-i)),rr=right?new Int16Array(l.length):undefined;for(let j=0;j<l.length;j++){l[j]=Math.max(-1,Math.min(1,left[i+j]))*0x7fff;if(rr&&right)rr[j]=Math.max(-1,Math.min(1,right[i+j]))*0x7fff}const out=channels===2&&rr?encoder.encodeBuffer(l,rr):encoder.encodeBuffer(l);if(out.length)mp3.push(...Array.from(out))}const tail=encoder.flush();mp3.push(...Array.from(tail));const b=new Blob([new Uint8Array(mp3)],{type:'audio/mpeg'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`quran-recitation-${Date.now()}.mp3`;a.click();URL.revokeObjectURL(a.href);await ac.close()}catch{alert('Konversi MP3 gagal pada browser ini. Coba rekam ulang.')}};
+  return <main><header className="topbar"><div className="brand"><div className="brandmark">ق</div><div><strong>QUR’AN</strong><span>RECITATION STUDIO</span></div></div><nav><a className="active">Mushaf</a><a>Practice</a><a>Studio</a><a>Recordings</a></nav><div className="top-actions"><button className="icon"><Search size={18}/></button><button className="icon"><Settings2 size={18}/></button><button className="avatar">R</button></div></header>
+  <section className="hero"><div className="eyebrow"><Sparkles size={14}/> PREMIUM RECITATION EXPERIENCE</div><h1>Read. Listen.<br/><em>Recite beautifully.</em></h1><p>A focused Qur’an studio built for listening, guided recitation, and mindful practice.</p><div className="hero-buttons"><button className="primary" onClick={()=>setPlaying(!playing)}>{playing?<Pause size={17}/>:<Play size={17}/>} {playing?'Pause session':'Start recitation'}</button><button className="ghost"><Headphones size={17}/> Choose Qari</button></div></section>
+  <section className="workspace"><aside className="sidebar"><div className="side-title">SURAH</div><div className="surah selected"><span>01</span><div><b>Al-Fatihah</b><small>Pembukaan</small></div><i>7</i></div>{['Al-Baqarah','Ali ‘Imran','An-Nisa’','Al-Ma’idah'].map((x,i)=><div className="surah" key={x}><span>{String(i+2).padStart(2,'0')}</span><div><b>{x}</b><small>{i===0?'Sapi':'Surah'}</small></div><i>{i===0?286:i===1?200:i===2?176:120}</i></div>)}<button className="browse">Browse all surahs <ChevronRight size={15}/></button></aside>
+  <div className="reader"><div className="reader-head"><div><span className="chapter">01 · MAKKIYYAH</span><h2>Al-Fatihah <small>الفاتحة</small></h2></div><div className="reader-tools"><button>◐</button><button>Aa</button><button>⌘</button></div></div><div className="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div><div className="verses">{verses.map(v=><article className={`verse ${active===v.n?'current':''}`} key={v.n} onClick={()=>setActive(v.n)}><span className="verse-no">{v.n}</span><div><div className="arabic">{v.text}</div><div className="translation">{v.trans}</div></div><button className="verse-play" onClick={e=>{e.stopPropagation();setActive(v.n);setPlaying(true)}}><Play size={13}/></button></article>)}</div></div>
+  <aside className="studio"><div className="studio-head"><div><span>RECITATION LAB</span><h3>Qari Studio</h3></div><div className="live">● LIVE</div></div><div className="qari"><div className="qari-photo">M</div><div><b>Mishary Alafasy</b><small>Murattal · Hafs</small></div><Volume2 size={17}/></div><div className="visual"><div className="visual-label"><span>REFERENCE · QARI</span><span>{playing?'01:12':'00:00'}</span></div><canvas ref={canvas}/><div className="pitch-line"><span>Pitch contour</span><div className="pitch"><i/><i/><i/><i/><i/><i/><i/></div></div></div><div className="controls"><button onClick={()=>setPlaying(!playing)} className="playbig">{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>setSpeed(speed===1?.75:speed===.75?.5:1)}>{speed}×</button><button>↻</button></div><div className="record-box"><div className="record-title"><span>YOUR RECITATION</span><strong>{String(Math.floor(seconds/60)).padStart(2,'0')}:{String(seconds%60).padStart(2,'0')}</strong></div><div className="record-wave">{Array.from({length:38},(_,i)=><i key={i} style={{height:`${8+(i%7)*4+(recording?(i%3)*8:0)}px`}}/>)}</div><div className="record-actions">{!recording?<button className="record" onClick={startRecording}><Mic size={15}/> Start recording</button>:<button className="stop" onClick={stopRecording}><Square size={13} fill="currentColor"/> Stop</button>}<button disabled={!lastAudio} onClick={downloadMP3}><Download size={15}/> Save MP3</button></div></div><div className="score"><div><span>Timing</span><b>94%</b></div><div><span>Stability</span><b>91%</b></div><div><span>Flow</span><b>88%</b></div></div><div className="mic-status">{mic?'● Microphone active — speak naturally':'○ Microphone ready'}</div></aside></section><footer>QUR’AN STUDIO <span>Built for mindful recitation · Audio and Qur’an data should be used according to their respective licenses.</span></footer></main>;
 }
